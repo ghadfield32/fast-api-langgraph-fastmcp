@@ -1,5 +1,5 @@
-version: '3.8'
-
+# This is the docker-compose.yml file for the FastAPI app.
+# location: ./docker-compose.yml
 services:
   # ───────────────────────────
   # FastAPI app
@@ -11,7 +11,7 @@ services:
     depends_on:
       - db                                    # wait for Postgres
     ports:
-      - "8000:8000"
+      - "8001:8000"
     volumes:
       - ./app:/app/app
       - ./logs:/app/logs

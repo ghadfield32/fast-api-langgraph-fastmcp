@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# location: ./scripts/run-docker.sh
 set -e
 
 # Script to securely run Docker containers
@@ -29,16 +31,17 @@ if [ "$(docker ps -a -q -f name=$CONTAINER_NAME)" ]; then
   docker rm $CONTAINER_NAME >/dev/null 2>&1 || true
 fi
 
+
 # Create logs directory if it doesn't exist
 mkdir -p ./logs
 
 # Run the container
 echo "Running container $CONTAINER_NAME from image $IMAGE_NAME"
 docker run -d \
-  -p 8000:8000 \
+  -p 8001:8000 \
   -v ./logs:/app/logs \
   --name $CONTAINER_NAME \
-  $IMAGE_NAME
+  $IMAGE_NAME 
 
 echo "Container $CONTAINER_NAME started successfully"
 echo "API is available at http://localhost:8000"

@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# location: ./scripts/build-docker.sh
 set -e
 
 # Script to securely build Docker images without exposing secrets in build output
