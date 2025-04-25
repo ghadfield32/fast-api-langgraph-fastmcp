@@ -84,45 +84,35 @@ POSTGRES_URL="postgresql://:your-db-password@POSTGRES_HOST:POSTGRES_PORT/POSTGRE
 
 #### Local Development
 
-1. Install dependencies:
+Open your WSL shell and cd into your project
 
-```bash
-uv sync
-```
+wsl -d Ubuntu
+cd ~/projects/fastapi-langgraph-agent-production-ready-template
 
-2. Run the application:
 
-```bash
-make [dev|staging|production] # e.g. make dev
-```
+Build your Docker images
 
-1. Go to Swagger UI:
+# This builds the app image (with uv sync baked in) + pulls Postgres/Prometheus/Grafana
+make docker-build-env ENV=development
 
-```bash
-http://localhost:8000/docs
-```
+Start everything
 
-#### Using Docker
+make docker-run-env ENV=development
 
-1. Build and run with Docker Compose:
+— or, if you need a different environment:
 
-```bash
-make docker-build-env ENV=[development|staging|production] # e.g. make docker-build-env ENV=development
-make docker-run-env ENV=[development|staging|production] # e.g. make docker-run-env ENV=development
-```
+make staging   # for .env.staging  
+make production
 
-2. Access the monitoring stack:
+Hit your Swagger UI
+App listens on port 8000 → http://localhost:8000/docs
 
-```bash
-# Prometheus metrics
-http://localhost:9090
+Prometheus on 9190 → http://localhost:9190
 
-# Grafana dashboards
-http://localhost:3000
-Default credentials:
-- Username: admin
-- Password: admin
-```
+Grafana on 3300 → http://localhost:3300 (user/pass: admin/admin)
+
+
+
 
 The Docker setup includes:
 

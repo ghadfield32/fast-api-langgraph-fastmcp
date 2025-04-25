@@ -148,11 +148,25 @@ class Settings:
         self.LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 
         # LangGraph Configuration
-        self.LLM_API_KEY = os.getenv("LLM_API_KEY", "")
+        self.LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")
         self.LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
         self.DEFAULT_LLM_TEMPERATURE = float(os.getenv("DEFAULT_LLM_TEMPERATURE", "0.2"))
         self.MAX_TOKENS = int(os.getenv("MAX_TOKENS", "2000"))
         self.MAX_LLM_CALL_RETRIES = int(os.getenv("MAX_LLM_CALL_RETRIES", "3"))
+        
+        # LLM API Keys
+        self.OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+        self.ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+        self.GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+        
+        # Ollama settings
+        self.OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        
+        # For backward compatibility
+        self.LLM_API_KEY = os.getenv("LLM_API_KEY", self.OPENAI_API_KEY)
+        
+        # Docker configuration
+        self.USE_DOCKER = os.getenv("USE_DOCKER", "false").lower() in ("true", "1", "t", "yes")
 
         # JWT Configuration
         self.JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "")

@@ -1,23 +1,24 @@
+version: '3.8'
 
 services:
-  # Single API service with dynamic environment
+  # ───────────────────────────
+  # FastAPI app
   app:
     build:
       context: .
       args:
         APP_ENV: ${APP_ENV:-development}
     depends_on:
-      - db                          # wait for Postgres container to start :contentReference[oaicite:12]{index=12}
+      - db                                    # wait for Postgres
     ports:
       - "8000:8000"
     volumes:
       - ./app:/app/app
       - ./logs:/app/logs
     env_file:
-      - .env.${APP_ENV:-development}
+      - .env.${APP_ENV:-development}          # e.g. .env.development
     environment:
       - APP_ENV=${APP_ENV:-development}
-      # Pass sensitive variables at runtime
       - LLM_API_KEY=${LLM_API_KEY:-dummy-key-for-development}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
@@ -32,37 +33,47 @@ services:
     networks:
       - monitoring
 
-  # PostgreSQL database for the app
+  # ───────────────────────────
+  # PostgreSQL database
   db:
-    image: postgres:16             # official Postgres image :contentReference[oaicite:13]{index=13}
+    image: postgres:16                     # use latest 16.x
     container_name: langgraph_db
+    restart: always
     ports:
-      - "55432:5432"                 # map host port for local inspection :contentReference[oaicite:14]{index=14}
+      - "55432:5432"                       # host:container (for local psql)
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: mysecretpw
       POSTGRES_DB: fastapi-langgraph-mcp-dev
     volumes:
       - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - monitoring
 
-  # Prometheus
+  # ───────────────────────────
+  # Prometheus for metrics
   prometheus:
     image: prom/prometheus:latest
+    restart: always
     ports:
-      - "9190:9090"
+      - "9190:9090"                        # host:container
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
     networks:
       - monitoring
-    restart: always
 
-  # Grafana
+  # ───────────────────────────
+  # Grafana dashboards
   grafana:
     image: grafana/grafana:latest
+    restart: always
     ports:
       - "3300:3000"
     volumes:
@@ -73,7 +84,6 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
       GF_USERS_ALLOW_SIGN_UP: "false"
-    restart: always
     networks:
       - monitoring
 
@@ -83,4 +93,4 @@ networks:
 
 volumes:
   db-data:
-  grafana-storage: 
+  grafana-storage:

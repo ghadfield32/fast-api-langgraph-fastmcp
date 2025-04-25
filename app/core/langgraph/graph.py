@@ -9,11 +9,14 @@ from typing import (
 )
 
 from asgiref.sync import sync_to_async
+from langchain_anthropic import ChatAnthropic
+from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import (
     BaseMessage,
     ToolMessage,
     convert_to_openai_messages,
 )
+from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
 from langfuse.callback import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -52,19 +55,36 @@ class LangGraphAgent:
 
     def __init__(self):
         """Initialize the LangGraph Agent with necessary components."""
-        # Use environment-specific LLM model
-        self.llm = ChatOpenAI(
-            model=settings.LLM_MODEL,
-            temperature=settings.DEFAULT_LLM_TEMPERATURE,
-            api_key=settings.LLM_API_KEY,
-            max_tokens=settings.MAX_TOKENS,
-            **self._get_model_kwargs(),
-        ).bind_tools(tools)
+        # Select LLM provider based on settings
+        provider = settings.LLM_PROVIDER.lower()
+        model_name = settings.LLM_MODEL
+        
+        if provider == "openai":
+            llm = ChatOpenAI(model=model_name, temperature=settings.DEFAULT_LLM_TEMPERATURE,
+                             openai_api_key=settings.OPENAI_API_KEY)  # OpenAI key
+        elif provider == "anthropic":
+            llm = ChatAnthropic(model=model_name, temperature=settings.DEFAULT_LLM_TEMPERATURE,
+                                api_key=settings.ANTHROPIC_API_KEY)    # Anthropic key
+        elif provider == "groq":
+            llm = ChatGroq(model=model_name, temperature=settings.DEFAULT_LLM_TEMPERATURE,
+                           api_key=settings.GROQ_API_KEY)             # Groq key
+        elif provider == "ollama":
+            # Connect to local Ollama server (assumes Ollama running on port 11434)
+            base_url = settings.OLLAMA_HOST or "http://localhost:11434"
+            # If running inside Docker, use host.docker.internal to reach host machine
+            if settings.USE_DOCKER:
+                base_url = "http://host.docker.internal:11434"
+            llm = ChatOllama(model=model_name, base_url=base_url, 
+                             temperature=settings.DEFAULT_LLM_TEMPERATURE)
+        else:
+            raise ValueError(f"Unsupported LLM provider: {provider}")
+        
+        self.llm = llm.bind_tools(tools)
         self.tools_by_name = {tool.name: tool for tool in tools}
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
 
-        logger.info("llm_initialized", model=settings.LLM_MODEL, environment=settings.ENVIRONMENT.value)
+        logger.info("llm_initialized", model=settings.LLM_MODEL, provider=provider, environment=settings.ENVIRONMENT.value)
 
     def _get_model_kwargs(self) -> Dict[str, Any]:
         """Get environment-specific model kwargs.
@@ -130,6 +150,7 @@ class LangGraphAgent:
         messages = prepare_messages(state.messages, self.llm, SYSTEM_PROMPT)
 
         llm_calls_num = 0
+        provider = settings.LLM_PROVIDER.lower()
 
         # Configure retry attempts based on environment
         max_retries = settings.MAX_LLM_CALL_RETRIES
@@ -142,12 +163,14 @@ class LangGraphAgent:
                     session_id=state.session_id,
                     llm_calls_num=llm_calls_num + 1,
                     model=settings.LLM_MODEL,
+                    provider=provider,
                     environment=settings.ENVIRONMENT.value,
                 )
                 return generated_state
-            except OpenAIError as e:
+            except (OpenAIError, Exception) as e:
                 logger.error(
                     "llm_call_failed",
+                    provider=provider,
                     llm_calls_num=llm_calls_num,
                     attempt=attempt + 1,
                     max_retries=max_retries,
@@ -158,15 +181,27 @@ class LangGraphAgent:
 
                 # In production, we might want to fall back to a more reliable model
                 if settings.ENVIRONMENT == Environment.PRODUCTION and attempt == max_retries - 2:
-                    fallback_model = "gpt-4o"
-                    logger.warning(
-                        "using_fallback_model", model=fallback_model, environment=settings.ENVIRONMENT.value
-                    )
-                    self.llm.model_name = fallback_model
+                    fallback_model = None
+                    # Provider-specific fallback models
+                    if provider == "openai":
+                        fallback_model = "gpt-4o"
+                    elif provider == "anthropic":
+                        fallback_model = "claude-3-haiku-20240307"
+                    elif provider == "groq":
+                        fallback_model = "llama2-70b-4096"
+                    
+                    if fallback_model:
+                        logger.warning(
+                            "using_fallback_model", model=fallback_model, provider=provider, environment=settings.ENVIRONMENT.value
+                        )
+                        if hasattr(self.llm, "model_name"):
+                            self.llm.model_name = fallback_model
+                        elif hasattr(self.llm, "model"):
+                            self.llm.model = fallback_model
 
                 continue
 
-        raise Exception(f"Failed to get a response from the LLM after {max_retries} attempts")
+        raise Exception(f"Failed to get a response from the {provider} LLM after {max_retries} attempts")
 
     # Define our tool node
     async def _tool_call(self, state: GraphState) -> GraphState:
@@ -239,13 +274,17 @@ class LangGraphAgent:
                     if settings.ENVIRONMENT != Environment.PRODUCTION:
                         raise Exception("Connection pool initialization failed")
 
+                provider = settings.LLM_PROVIDER.lower()
+                graph_name = f"{settings.PROJECT_NAME} Agent ({provider}/{settings.LLM_MODEL} - {settings.ENVIRONMENT.value})"
+                
                 self._graph = graph_builder.compile(
-                    checkpointer=checkpointer, name=f"{settings.PROJECT_NAME} Agent ({settings.ENVIRONMENT.value})"
+                    checkpointer=checkpointer, name=graph_name
                 )
 
                 logger.info(
                     "graph_created",
-                    graph_name=f"{settings.PROJECT_NAME} Agent",
+                    graph_name=graph_name,
+                    provider=provider,
                     environment=settings.ENVIRONMENT.value,
                     has_checkpointer=checkpointer is not None,
                 )
