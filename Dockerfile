@@ -28,6 +28,9 @@ RUN apt-get update && apt-get install -y \
 COPY pyproject.toml .
 RUN uv venv && . .venv/bin/activate && uv pip install -e .
 
+# Explicitly install langchain-ollama to ensure it's available
+RUN . .venv/bin/activate && pip install langchain-ollama
+
 # Copy the application
 COPY . .
 

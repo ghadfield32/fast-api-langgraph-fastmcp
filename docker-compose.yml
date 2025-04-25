@@ -11,7 +11,7 @@ services:
     depends_on:
       - db                                    # wait for Postgres
     ports:
-      - "8001:8000"
+      - "8000:8000"
     volumes:
       - ./app:/app/app
       - ./logs:/app/logs

@@ -43,6 +43,7 @@ dependencies = [
     "langchain-anthropic>=0.1.12",
     "langchain-mcp-adapters>=0.0.1,<0.1.0",
     "transformers>=4.35.0",
+    "langchain-ollama>=0.3.2",
     
 ]
 

@@ -1,5 +1,7 @@
 """LangGraph tools for enhanced language model capabilities.
 
+location: app/core/langgraph/tools/__init__.py
+
 This package contains custom tools that can be used with LangGraph to extend
 the capabilities of language models. Currently includes tools for web search
 and other external integrations.

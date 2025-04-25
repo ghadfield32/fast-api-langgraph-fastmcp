@@ -10,13 +10,13 @@ from typing import (
 
 from asgiref.sync import sync_to_async
 from langchain_anthropic import ChatAnthropic
-from langchain_community.chat_models import ChatOllama
 from langchain_core.messages import (
     BaseMessage,
     ToolMessage,
     convert_to_openai_messages,
 )
 from langchain_groq import ChatGroq
+from langchain_ollama import ChatOllama
 from langchain_openai import ChatOpenAI
 from langfuse.callback import CallbackHandler
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
@@ -79,7 +79,7 @@ class LangGraphAgent:
         else:
             raise ValueError(f"Unsupported LLM provider: {provider}")
         
-        self.llm = llm.bind_tools(tools)
+        self.llm = llm  # Store the raw LLM
         self.tools_by_name = {tool.name: tool for tool in tools}
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
@@ -157,7 +157,11 @@ class LangGraphAgent:
 
         for attempt in range(max_retries):
             try:
-                generated_state = {"messages": [await self.llm.ainvoke(dump_messages(messages))]}
+                # Use tools directly when invoking the LLM
+                generated_state = {"messages": [await self.llm.ainvoke(
+                    dump_messages(messages), 
+                    tools=[tool.schema for tool in self.tools_by_name.values()]
+                )]}
                 logger.info(
                     "llm_response_generated",
                     session_id=state.session_id,

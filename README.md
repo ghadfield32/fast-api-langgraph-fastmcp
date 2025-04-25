@@ -1,185 +1,163 @@
-# FastAPI LangGraph Agent Template
+# FastAPI LangGraph Template Setup Guide
 
-A production-ready FastAPI template for building AI agent applications with LangGraph integration. This template provides a robust foundation for building scalable, secure, and maintainable AI agent services.
+A comprehensive guide covering both **Makefile + Docker Compose** workflows (via WSL/Ubuntu) and **plain Docker** commands, plus common pitfalls encountered and how to resolve them.
 
-## 🌟 Features
+---
 
-- **Production-Ready Architecture**
+## 1. Prerequisites
 
-  - FastAPI for high-performance async API endpoints
-  - LangGraph integration for AI agent workflows
-  - Langfuse for LLM observability and monitoring
-  - Structured logging with environment-specific formatting
-  - Rate limiting with configurable rules
-  - PostgreSQL for data persistence
-  - Docker and Docker Compose support
-  - Prometheus metrics and Grafana dashboards for monitoring
+- **OS**: Windows + WSL (Ubuntu) or macOS/Linux
+- **Docker** & **Docker Compose**
+- **Python 3.13+** & `uv` CLI (`pip install uv`)
+- **Make** (via Ubuntu in WSL) or local `make` on macOS/Linux
 
-- **Security**
+---
 
-  - JWT-based authentication
-  - Session management
-  - Input sanitization
-  - CORS configuration
-  - Rate limiting protection
-
-- **Developer Experience**
-
-  - Environment-specific configuration
-  - Comprehensive logging system
-  - Clear project structure
-  - Type hints throughout
-  - Easy local development setup
-
-- **Model Evaluation Framework**
-  - Automated metric-based evaluation of model outputs
-  - Integration with Langfuse for trace analysis
-  - Detailed JSON reports with success/failure metrics
-  - Interactive command-line interface
-  - Customizable evaluation metrics
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- Python 3.13+
-- PostgreSQL ([see Database setup](#database-setup))
-- Docker and Docker Compose (optional)
-
-### Environment Setup
-
-1. Clone the repository:
+## 2. Clone & Environment
 
 ```bash
-git clone <repository-url>
-cd <project-directory>
+# Clone your fork
+git clone <repository-url> fast-api-langgraph-fastmcp
+cd fast-api-langgraph-fastmcp
+
+# Copy example env to development
+cp .env.example .env.development
+# Then edit .env.development and set:
+#   - JWT_SECRET_KEY
+#   - LLM_API_KEY and/or OPENAI_API_KEY
+#   - POSTGRES_URL (e.g. postgresql://postgres:mysecretpw@db:5432/fastapi-langgraph-mcp-dev)
 ```
 
-2. Create and activate a virtual environment:
+Verify your `.env.development` includes:
+```ini
+APP_ENV=development
+JWT_SECRET_KEY=<your-key>
+LLM_API_KEY=<your-key>
+OPENAI_API_KEY=<your-key>
+POSTGRES_URL=postgresql://postgres:mysecretpw@db:5432/fastapi-langgraph-mcp-dev
+```
+
+---
+
+## 3. Build & Run: Makefile + Docker Compose (WSL/Ubuntu)
+
+> **Image**: `fast-api-langgraph-fastmcp_app`
+
+1. **Build** API image:
+   ```bash
+   wsl -d Ubuntu -- cd /mnt/c/docker_projects/fast-api-langgraph-fastmcp \
+     && make docker-build-env ENV=development
+   ```
+2. **Start full stack** (API + Postgres + Prometheus + Grafana):
+   ```bash
+   make docker-compose-up ENV=development
+   ```
+3. **Verify running**:
+   ```bash
+   docker ps | grep fast-api-langgraph-fastmcp
+   ```
+4. **Endpoints**:
+   - API health:     `http://localhost:8000/health`
+   - Swagger UI:     `http://localhost:8000/docs`
+   - Prometheus:     `http://localhost:9190`
+   - Grafana:        `http://localhost:3300` (admin/admin)
+5. **Logs / Stop / Down**:
+   ```bash
+   make docker-compose-logs ENV=development  # follow all logs
+   make docker-compose-down ENV=development  # tear down stack
+   ```
+
+---
+
+## 4. Build & Run: Plain Docker (without Compose)
+
+> Useful for quick testing of your API container in isolation.
+
+1. **Build** the image manually:
+   ```bash
+   docker build \
+     --build-arg APP_ENV=development \
+     -t fast-api-langgraph-dev .
+   ```
+2. **Run** the container:
+   ```bash
+   docker run -d \
+     --name fastapi-langgraph-dev \
+     -p 8000:8000 \
+     -e APP_ENV=development \
+     -e JWT_SECRET_KEY=<your-key> \
+     -e LLM_API_KEY=<your-key> \
+     -e OPENAI_API_KEY=<your-key> \
+     -e POSTGRES_URL=postgresql://postgres:mysecretpw@host.docker.internal:55432/fastapi-langgraph-mcp-dev \
+     fast-api-langgraph-dev
+   ```
+3. **Verify**:
+   ```bash
+   docker ps | grep fastapi-langgraph-dev
+   curl http://localhost:8000/health
+   ```
+4. **Logs / Stop / Remove**:
+   ```bash
+   docker logs fastapi-langgraph-dev -f
+   docker stop fastapi-langgraph-dev
+   docker rm fastapi-langgraph-dev
+   ```
+
+---
+
+## 5. Common Gotchas & Troubleshooting
+
+| Issue                              | Cause & Fix                                                                                       |
+|------------------------------------|---------------------------------------------------------------------------------------------------|
+| **Port already allocated**         | A previous container is still using port 8000.                                                     |
+|                                    | **Fix:** `docker ps` → `docker stop <name>` → `docker rm <name>`.                                     |
+| **Missing ENV variables**          | Container exits if `JWT_SECRET_KEY`, `LLM_API_KEY`, `POSTGRES_URL` (etc.) are not set.             |
+|                                    | **Fix:** Ensure `.env.development` or `-e` flags cover all required envs.                           |
+| **ModuleNotFoundError**            | e.g. `langchain_ollama` not installed due to editable install skipping optional packages.         |
+|                                    | **Fix:** In Dockerfile, after `pip install -e .`, add `pip install langchain-ollama` and rebuild.  |
+| **WSL path & permissions issue**   | `docker-compose` can’t execute because script lacks `+x` or using Windows path.                    |
+|                                    | **Fix:** `chmod +x scripts/*.sh` in repo; use `wsl -d Ubuntu` to ensure Linux paths.               |
+
+---
+
+## 6. Development Workflow
+
+- **Code changes** under `/app/app`: hot-reloaded by Uvicorn (`--reload`). No rebuild needed—just restart API container.
+- **Dependencies or Dockerfile changes**: run `make docker-build-env ENV=development` to rebuild image.
+
+---
+
+## 7. CI / Staging / Production
+
+Use the same Make targets with different `ENV` values:
+
+| Environment | Build Command                         | Deployment                                                      |
+|-------------|---------------------------------------|-----------------------------------------------------------------|
+| **Test**    | `make docker-build ENV=test`      | CI: tag and push `fast-api-langgraph-fastmcp_app:test`         |
+| **Stage**   | `make docker-build ENV=staging`   | `docker run -p 80:8000 … fast-api-langgraph-fastmcp_app:staging`|
+| **Prod**    | `make docker-build ENV=production`| Orchestrator (K8s/Compose): `:production`                      |
+
+> Secrets are injected via `--build-arg` and/or runtime `-e` flags, managed by `docker-entrypoint.sh`.
+
+---
+
+## 8. Quick Reference Cheat Sheet
 
 ```bash
-uv sync
+# Build & run full stack (WSL)
+wsl -d Ubuntu -- cd … && make docker-build-env ENV=development && make docker-compose-up ENV=development
+
+# Plain Docker build & run
+docker build --build-arg APP_ENV=development -t fast-api-langgraph-dev .
+docker run -d --name fastapi-langgraph-dev -p 8000:8000 … fast-api-langgraph-dev
+
+# Logs & stop
+make docker-compose-logs ENV=development
+make docker-compose-down ENV=development
+docker logs fastapi-langgraph-dev -f
+docker stop fastapi-langgraph-dev && docker rm fastapi-langgraph-dev
+
+# Health check
+curl http://localhost:8000/health
 ```
 
-3. Copy the example environment file:
-
-```bash
-cp .env.example .env.[development|staging|production] # e.g. .env.development
-```
-
-4. Update the `.env` file with your configuration (see `.env.example` for reference)
-
-### Database setup
-
-1. Create a PostgreSQL database (e.g Supabase or local PostgreSQL)
-2. Update the database connection string in your `.env` file:
-
-```bash
-POSTGRES_URL="postgresql://:your-db-password@POSTGRES_HOST:POSTGRES_PORT/POSTGRES_DB"
-```
-
-- You don't have to create the tables manually, the ORM will handle that for you.But if you faced any issues,please run the `schemas.sql` file to create the tables manually.
-
-### Running the Application
-
-#### Local Development
-
-Open your WSL shell and cd into your project
-
-wsl -d Ubuntu
-cd ~/projects/fastapi-langgraph-agent-production-ready-template
-
-
-Build your Docker images
-
-# This builds the app image (with uv sync baked in) + pulls Postgres/Prometheus/Grafana
-make docker-build-env ENV=development
-
-Start everything
-
-make docker-run-env ENV=development
-
-— or, if you need a different environment:
-
-make staging   # for .env.staging  
-make production
-
-Hit your Swagger UI
-App listens on port 8000 → http://localhost:8000/docs
-
-Prometheus on 9190 → http://localhost:9190
-
-Grafana on 3300 → http://localhost:3300 (user/pass: admin/admin)
-
-
-
-
-The Docker setup includes:
-
-- FastAPI application
-- PostgreSQL database
-- Prometheus for metrics collection
-- Grafana for metrics visualization
-- Pre-configured dashboards for:
-  - API performance metrics
-  - Rate limiting statistics
-  - Database performance
-  - System resource usage
-
-## 📊 Model Evaluation
-
-The project includes a robust evaluation framework for measuring and tracking model performance over time. The evaluator automatically fetches traces from Langfuse, applies evaluation metrics, and generates detailed reports.
-
-### Running Evaluations
-
-You can run evaluations with different options using the provided Makefile commands:
-
-```bash
-# Interactive mode with step-by-step prompts
-make eval [ENV=development|staging|production]
-
-# Quick mode with default settings (no prompts)
-make eval-quick [ENV=development|staging|production]
-
-# Evaluation without report generation
-make eval-no-report [ENV=development|staging|production]
-```
-
-### Evaluation Features
-
-- **Interactive CLI**: User-friendly interface with colored output and progress bars
-- **Flexible Configuration**: Set default values or customize at runtime
-- **Detailed Reports**: JSON reports with comprehensive metrics including:
-  - Overall success rate
-  - Metric-specific performance
-  - Duration and timing information
-  - Trace-level success/failure details
-
-### Customizing Metrics
-
-Evaluation metrics are defined in `evals/metrics/prompts/` as markdown files:
-
-1. Create a new markdown file (e.g., `my_metric.md`) in the prompts directory
-2. Define the evaluation criteria and scoring logic
-3. The evaluator will automatically discover and apply your new metric
-
-### Viewing Reports
-
-Reports are automatically generated in the `evals/reports/` directory with timestamps in the filename:
-
-```
-evals/reports/evaluation_report_YYYYMMDD_HHMMSS.json
-```
-
-Each report includes:
-
-- High-level statistics (total trace count, success rate, etc.)
-- Per-metric performance metrics
-- Detailed trace-level information for debugging
-
-## 🔧 Configuration
-
-The application uses a flexible configuration system with environment-specific settings:
-
-- `.env.development`
--
