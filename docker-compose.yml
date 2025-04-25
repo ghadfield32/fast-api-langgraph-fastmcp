@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   # Single API service with dynamic environment
@@ -7,6 +6,8 @@ services:
       context: .
       args:
         APP_ENV: ${APP_ENV:-development}
+    depends_on:
+      - db                          # wait for Postgres container to start :contentReference[oaicite:12]{index=12}
     ports:
       - "8000:8000"
     volumes:
@@ -31,11 +32,26 @@ services:
     networks:
       - monitoring
 
+  # PostgreSQL database for the app
+  db:
+    image: postgres:16             # official Postgres image :contentReference[oaicite:13]{index=13}
+    container_name: langgraph_db
+    ports:
+      - "55432:5432"                 # map host port for local inspection :contentReference[oaicite:14]{index=14}
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpw
+      POSTGRES_DB: fastapi-langgraph-mcp-dev
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - monitoring
+
   # Prometheus
   prometheus:
     image: prom/prometheus:latest
     ports:
-      - "9090:9090"
+      - "9190:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
     command:
@@ -48,7 +64,7 @@ services:
   grafana:
     image: grafana/grafana:latest
     ports:
-      - "3000:3000"
+      - "3300:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
     environment:
@@ -63,4 +79,5 @@ networks:
     driver: bridge
 
 volumes:
+  db-data:
   grafana-storage: 
