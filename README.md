@@ -45,8 +45,10 @@ POSTGRES_URL=postgresql://postgres:mysecretpw@db:5432/fastapi-langgraph-mcp-dev
 
 1. **Build** API image:
    ```bash
-   wsl -d Ubuntu -- cd /mnt/c/docker_projects/fast-api-langgraph-fastmcp \
-     && make docker-build-env ENV=development
+   wsl -d Ubuntu 
+  ```
+  ```bash
+  make docker-build ENV=development
    ```
 2. **Start full stack** (API + Postgres + Prometheus + Grafana):
    ```bash
@@ -67,63 +69,11 @@ POSTGRES_URL=postgresql://postgres:mysecretpw@db:5432/fastapi-langgraph-mcp-dev
    make docker-compose-down ENV=development  # tear down stack
    ```
 
----
-
-## 4. Build & Run: Plain Docker (without Compose)
-
-> Useful for quick testing of your API container in isolation.
-
-1. **Build** the image manually:
-   ```bash
-   docker build \
-     --build-arg APP_ENV=development \
-     -t fast-api-langgraph-dev .
-   ```
-2. **Run** the container:
-   ```bash
-   docker run -d \
-     --name fastapi-langgraph-dev \
-     -p 8000:8000 \
-     -e APP_ENV=development \
-     -e JWT_SECRET_KEY=<your-key> \
-     -e LLM_API_KEY=<your-key> \
-     -e OPENAI_API_KEY=<your-key> \
-     -e POSTGRES_URL=postgresql://postgres:mysecretpw@host.docker.internal:55432/fastapi-langgraph-mcp-dev \
-     fast-api-langgraph-dev
-   ```
-3. **Verify**:
-   ```bash
-   docker ps | grep fastapi-langgraph-dev
-   curl http://localhost:8000/health
-   ```
-4. **Logs / Stop / Remove**:
-   ```bash
-   docker logs fastapi-langgraph-dev -f
-   docker stop fastapi-langgraph-dev
-   docker rm fastapi-langgraph-dev
-   ```
-
----
-
-## 5. Common Gotchas & Troubleshooting
-
-| Issue                              | Cause & Fix                                                                                       |
-|------------------------------------|---------------------------------------------------------------------------------------------------|
-| **Port already allocated**         | A previous container is still using port 8000.                                                     |
-|                                    | **Fix:** `docker ps` → `docker stop <name>` → `docker rm <name>`.                                     |
-| **Missing ENV variables**          | Container exits if `JWT_SECRET_KEY`, `LLM_API_KEY`, `POSTGRES_URL` (etc.) are not set.             |
-|                                    | **Fix:** Ensure `.env.development` or `-e` flags cover all required envs.                           |
-| **ModuleNotFoundError**            | e.g. `langchain_ollama` not installed due to editable install skipping optional packages.         |
-|                                    | **Fix:** In Dockerfile, after `pip install -e .`, add `pip install langchain-ollama` and rebuild.  |
-| **WSL path & permissions issue**   | `docker-compose` can’t execute because script lacks `+x` or using Windows path.                    |
-|                                    | **Fix:** `chmod +x scripts/*.sh` in repo; use `wsl -d Ubuntu` to ensure Linux paths.               |
-
----
 
 ## 6. Development Workflow
 
 - **Code changes** under `/app/app`: hot-reloaded by Uvicorn (`--reload`). No rebuild needed—just restart API container.
-- **Dependencies or Dockerfile changes**: run `make docker-build-env ENV=development` to rebuild image.
+- **Dependencies or Dockerfile changes**: run `make docker-build ENV=development` to rebuild image.
 
 ---
 
