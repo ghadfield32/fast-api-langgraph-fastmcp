@@ -1,3 +1,6 @@
+# This is the .dockerignore file for the FastAPI app.
+# location: .dockerignore
+
 # Version control
 .git
 .gitignore

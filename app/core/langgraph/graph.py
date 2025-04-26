@@ -9,6 +9,7 @@ from typing import (
 )
 
 from asgiref.sync import sync_to_async
+from langchain.tools import BaseTool
 from langchain_anthropic import ChatAnthropic
 from langchain_core.messages import (
     BaseMessage,
@@ -33,7 +34,7 @@ from app.core.config import (
     Environment,
     settings,
 )
-from app.core.langgraph.tools import tools
+from app.core.langgraph.tools import tools as default_tools
 from app.core.logging import logger
 from app.core.prompts import SYSTEM_PROMPT
 from app.schemas import (
@@ -53,7 +54,7 @@ class LangGraphAgent:
     including LLM interactions, database connections, and response processing.
     """
 
-    def __init__(self):
+    def __init__(self, tools: list[BaseTool] | None = None):
         """Initialize the LangGraph Agent with necessary components."""
         # Select LLM provider based on settings
         provider = settings.LLM_PROVIDER.lower()
@@ -80,7 +81,10 @@ class LangGraphAgent:
             raise ValueError(f"Unsupported LLM provider: {provider}")
         
         self.llm = llm  # Store the raw LLM
+        tools = tools or default_tools
+
         self.tools_by_name = {tool.name: tool for tool in tools}
+        self.tools: list[BaseTool] = tools
         self._connection_pool: Optional[AsyncConnectionPool] = None
         self._graph: Optional[CompiledStateGraph] = None
 

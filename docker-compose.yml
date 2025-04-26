@@ -4,10 +4,15 @@ services:
   # ───────────────────────────
   # FastAPI app
   app:
+    container_name: fast-api-langgraph-fastmcp-app-1
     build:
       context: .
       args:
         APP_ENV: ${APP_ENV:-development}
+        POSTGRES_URL: ${POSTGRES_URL}
+        JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+        LLM_API_KEY: ${LLM_API_KEY}
+        OPENAI_API_KEY: ${OPENAI_API_KEY}
     depends_on:
       - db                                    # wait for Postgres
     ports:
